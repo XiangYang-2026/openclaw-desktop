@@ -52,10 +52,6 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true
     },
-    "publish": {
-      "provider": "github",
-      "owner": "YOUR_GITHUB_USERNAME",
-      "repo": "openclaw-desktop"
-    }
+    "publish": null
   }
 }
