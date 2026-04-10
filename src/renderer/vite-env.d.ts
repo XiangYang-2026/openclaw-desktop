@@ -9,6 +9,24 @@ interface Window {
     }
     system: {
       status: () => Promise<{ success: boolean; output: string; error: string }>
+      info: () => Promise<{
+        platform: string
+        arch: string
+        nodeVersion: string
+        electronVersion: string
+        totalMemory: number
+        freeMemory: number
+        hostname: string
+        cpuModel: string
+        cpuCores: number
+      }>
+      usage: () => Promise<{
+        cpuUsage: number
+        memUsage: number
+        freeMemory: number
+        totalMemory: number
+      }>
+      openclawVersion: () => Promise<{ success: boolean; output: string; error: string }>
     }
     nodes: {
       pairingCode: () => Promise<{ success: boolean; output: string; error: string }>
@@ -37,6 +55,12 @@ interface Window {
           onClose?: (result: { code: number; output: string; error: string }) => void
         }
       ) => () => void
+    }
+    sessions: {
+      list: () => Promise<{ success: boolean; output: string; error: string }>
+      create: () => Promise<{ success: boolean; output: string; error: string }>
+      delete: (params: { sessionId: string }) => Promise<{ success: boolean; output: string; error: string }>
+      history: (params: { sessionId: string; limit?: number }) => Promise<{ success: boolean; output: string; error: string }>
     }
     platform: string
   }

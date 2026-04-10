@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('electron', {
   // 系统操作
   system: {
     status: () => ipcRenderer.invoke('system:status'),
+    info: () => ipcRenderer.invoke('system:info'),
+    usage: () => ipcRenderer.invoke('system:usage'),
+    openclawVersion: () => ipcRenderer.invoke('system:openclawVersion'),
   },
   
   // 节点管理
@@ -60,6 +63,14 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.removeAllListeners(`command:${commandId}`)
       }
     },
+  },
+  
+  // 会话管理
+  sessions: {
+    list: () => ipcRenderer.invoke('sessions:list'),
+    create: () => ipcRenderer.invoke('sessions:create'),
+    delete: (sessionId) => ipcRenderer.invoke('sessions:delete', { sessionId }),
+    history: (sessionId, limit) => ipcRenderer.invoke('sessions:history', { sessionId, limit }),
   },
   
   // 平台信息

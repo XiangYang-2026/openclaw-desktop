@@ -3,8 +3,9 @@ import Nodes from './pages/Nodes'
 import Channels from './pages/Channels'
 import Skills from './pages/Skills'
 import Settings from './pages/Settings'
+import Sessions from './pages/Sessions'
 
-type Page = 'gateway' | 'nodes' | 'channels' | 'skills' | 'settings'
+type Page = 'gateway' | 'nodes' | 'channels' | 'skills' | 'sessions' | 'settings'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('gateway')
@@ -59,6 +60,8 @@ function App() {
         return <Channels />
       case 'skills':
         return <Skills />
+      case 'sessions':
+        return <Sessions />
       case 'settings':
         return <Settings />
       default:
@@ -109,6 +112,12 @@ function App() {
             label="技能管理" 
             active={currentPage === 'skills'} 
             onClick={() => setCurrentPage('skills')} 
+          />
+          <NavItem 
+            icon="💬" 
+            label="会话管理" 
+            active={currentPage === 'sessions'} 
+            onClick={() => setCurrentPage('sessions')} 
           />
           <NavItem 
             icon="⚙️" 

@@ -39,7 +39,8 @@
     },
     "files": [
       "dist/**/*",
-      "src/main/**/*"
+      "src/main/**/*",
+      "src/preload/**/*"
     ],
     "win": {
       "target": [

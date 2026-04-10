@@ -6,11 +6,16 @@ const fs = require('fs')
 let mainWindow
 
 function createWindow() {
+  const isPackaged = app.isPackaged
+  const preloadPath = isPackaged
+    ? path.join(process.resourcesPath, 'app', 'src', 'preload', 'index.js')
+    : path.join(__dirname, '../../preload/index.js')
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -172,11 +177,14 @@ ipcMain.handle('system:status', async () => {
 ipcMain.handle('nodes:pairingCode', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['node', 'pairing-code'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -186,11 +194,14 @@ ipcMain.handle('nodes:pairingCode', async () => {
 ipcMain.handle('nodes:refreshPairing', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['node', 'pairing-code', '--refresh'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -200,11 +211,14 @@ ipcMain.handle('nodes:refreshPairing', async () => {
 ipcMain.handle('nodes:list', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['node', 'list'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -216,11 +230,14 @@ ipcMain.handle('nodes:list', async () => {
 ipcMain.handle('channels:list', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['channels', 'list'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -230,11 +247,14 @@ ipcMain.handle('channels:list', async () => {
 ipcMain.handle('channels:status', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['channels', 'status'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -244,12 +264,15 @@ ipcMain.handle('channels:status', async () => {
 ipcMain.handle('channels:testMessage', async (event, { channel, target, message }) => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     const args = ['message', 'send', '--channel', channel, '--target', target, '--message', message]
     runOpenClawCommand(args, (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -261,11 +284,14 @@ ipcMain.handle('channels:testMessage', async (event, { channel, target, message 
 ipcMain.handle('skills:list', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['skills', 'list'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -275,11 +301,14 @@ ipcMain.handle('skills:list', async () => {
 ipcMain.handle('skills:browse', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['skills', 'browse'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -289,11 +318,14 @@ ipcMain.handle('skills:browse', async () => {
 ipcMain.handle('skills:install', async (event, { skillName }) => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['skills', 'install', skillName], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -303,11 +335,14 @@ ipcMain.handle('skills:install', async (event, { skillName }) => {
 ipcMain.handle('skills:uninstall', async (event, { skillName }) => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['skills', 'uninstall', skillName], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -317,11 +352,14 @@ ipcMain.handle('skills:uninstall', async (event, { skillName }) => {
 ipcMain.handle('skills:scan', async (event, { skillName }) => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['skills', 'scan', skillName], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -331,15 +369,150 @@ ipcMain.handle('skills:scan', async (event, { skillName }) => {
 ipcMain.handle('skills:update', async (event, { skillName }) => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     const args = skillName ? ['skills', 'update', skillName] : ['skills', 'update']
     runOpenClawCommand(args, (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
+})
+
+// ============ 会话管理 ============
+
+// 获取会话列表
+ipcMain.handle('sessions:list', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    let errorResult = ''
+    runOpenClawCommand(['sessions', 'list'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: errorResult })
+      } else if (type === 'output') {
+        result += data
+      } else if (type === 'error') {
+        errorResult += data
+      }
+    })
+  })
+})
+
+// 创建新会话
+ipcMain.handle('sessions:create', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    let errorResult = ''
+    runOpenClawCommand(['sessions', 'create'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: errorResult })
+      } else if (type === 'output') {
+        result += data
+      } else if (type === 'error') {
+        errorResult += data
+      }
+    })
+  })
+})
+
+// 删除会话
+ipcMain.handle('sessions:delete', async (event, { sessionId }) => {
+  return new Promise((resolve) => {
+    let result = ''
+    let errorResult = ''
+    runOpenClawCommand(['sessions', 'delete', sessionId], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: errorResult })
+      } else if (type === 'output') {
+        result += data
+      } else if (type === 'error') {
+        errorResult += data
+      }
+    })
+  })
+})
+
+// 获取会话历史
+ipcMain.handle('sessions:history', async (event, { sessionId, limit = 50 }) => {
+  return new Promise((resolve) => {
+    let result = ''
+    let errorResult = ''
+    runOpenClawCommand(['sessions', 'history', sessionId, '--limit', limit.toString()], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: errorResult })
+      } else if (type === 'output') {
+        result += data
+      } else if (type === 'error') {
+        errorResult += data
+      }
+    })
+  })
+})
+
+// ============ 系统信息 ============
+
+// 获取 OpenClaw 版本
+ipcMain.handle('system:openclawVersion', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    let errorResult = ''
+    runOpenClawCommand(['--version'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result.trim(), error: errorResult })
+      } else if (type === 'output') {
+        result += data
+      } else if (type === 'error') {
+        errorResult += data
+      }
+    })
+  })
+})
+
+// 获取系统信息
+ipcMain.handle('system:info', async () => {
+  const os = require('os')
+  return {
+    platform: process.platform,
+    arch: process.arch,
+    nodeVersion: process.version,
+    electronVersion: process.versions.electron,
+    totalMemory: Math.round(os.totalmem() / 1024 / 1024 / 1024),
+    freeMemory: Math.round(os.freemem() / 1024 / 1024 / 1024),
+    hostname: os.hostname(),
+    cpuModel: os.cpus()[0]?.model || 'Unknown',
+    cpuCores: os.cpus().length,
+  }
+})
+
+// 获取 CPU 和内存使用率
+ipcMain.handle('system:usage', async () => {
+  const os = require('os')
+  const cpus = os.cpus()
+  
+  // CPU 使用率（简化计算）
+  let totalIdle = 0
+  let totalTick = 0
+  for (const cpu of cpus) {
+    totalIdle += cpu.times.idle
+    totalTick += cpu.times.user + cpu.times.nice + cpu.times.sys + cpu.times.idle + cpu.times.irq
+  }
+  const cpuUsage = Math.round((1 - totalIdle / totalTick) * 100)
+  
+  // 内存使用率
+  const totalMem = os.totalmem()
+  const freeMem = os.freemem()
+  const memUsage = Math.round(((totalMem - freeMem) / totalMem) * 100)
+  
+  return {
+    cpuUsage,
+    memUsage,
+    freeMemory: Math.round(freeMem / 1024 / 1024 / 1024),
+    totalMemory: Math.round(totalMem / 1024 / 1024 / 1024),
+  }
 })
 
 console.log('OpenClaw Desktop Main Process Started')
