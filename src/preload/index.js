@@ -28,6 +28,16 @@ contextBridge.exposeInMainWorld('electron', {
     testMessage: (channel, target, message) => ipcRenderer.invoke('channels:testMessage', { channel, target, message }),
   },
   
+  // 技能管理
+  skills: {
+    list: () => ipcRenderer.invoke('skills:list'),
+    browse: () => ipcRenderer.invoke('skills:browse'),
+    install: (skillName) => ipcRenderer.invoke('skills:install', { skillName }),
+    uninstall: (skillName) => ipcRenderer.invoke('skills:uninstall', { skillName }),
+    scan: (skillName) => ipcRenderer.invoke('skills:scan', { skillName }),
+    update: (skillName) => ipcRenderer.invoke('skills:update', { skillName }),
+  },
+  
   // 通用命令执行（支持实时输出）
   command: {
     exec: (args, callbacks) => {

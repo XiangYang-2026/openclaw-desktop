@@ -20,6 +20,14 @@ interface Window {
       status: () => Promise<{ success: boolean; output: string; error: string }>
       testMessage: (channel: string, target: string, message: string) => Promise<{ success: boolean; output: string; error: string }>
     }
+    skills: {
+      list: () => Promise<{ success: boolean; output: string; error: string }>
+      browse: () => Promise<{ success: boolean; output: string; error: string }>
+      install: (skillName: string) => Promise<{ success: boolean; output: string; error: string }>
+      uninstall: (skillName: string) => Promise<{ success: boolean; output: string; error: string }>
+      scan: (skillName: string) => Promise<{ success: boolean; output: string; error: string }>
+      update: (skillName?: string) => Promise<{ success: boolean; output: string; error: string }>
+    }
     command: {
       exec: (
         args: string[],

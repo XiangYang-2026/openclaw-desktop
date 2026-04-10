@@ -221,4 +221,91 @@ ipcMain.handle('channels:testMessage', async (event, { channel, target, message 
   })
 })
 
+// ============ 技能管理 ============
+
+// 获取已安装技能列表
+ipcMain.handle('skills:list', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['skills', 'list'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
+// 浏览 ClawHub 技能
+ipcMain.handle('skills:browse', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['skills', 'browse'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
+// 安装技能
+ipcMain.handle('skills:install', async (event, { skillName }) => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['skills', 'install', skillName], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
+// 卸载技能
+ipcMain.handle('skills:uninstall', async (event, { skillName }) => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['skills', 'uninstall', skillName], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
+// 技能安全扫描
+ipcMain.handle('skills:scan', async (event, { skillName }) => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['skills', 'scan', skillName], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
+// 更新技能
+ipcMain.handle('skills:update', async (event, { skillName }) => {
+  return new Promise((resolve) => {
+    let result = ''
+    const args = skillName ? ['skills', 'update', skillName] : ['skills', 'update']
+    runOpenClawCommand(args, (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
 console.log('OpenClaw Desktop Main Process Started')

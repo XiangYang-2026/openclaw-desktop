@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Nodes from './pages/Nodes'
 import Channels from './pages/Channels'
+import Skills from './pages/Skills'
 
 type Page = 'gateway' | 'nodes' | 'channels' | 'skills' | 'settings'
 
@@ -56,7 +57,7 @@ function App() {
       case 'channels':
         return <Channels />
       case 'skills':
-        return <div style={{ padding: '20px' }}><h2>🧩 技能管理</h2><p style={{ color: '#999' }}>开发中...</p></div>
+        return <Skills />
       case 'settings':
         return <div style={{ padding: '20px' }}><h2>⚙️ 设置</h2><p style={{ color: '#999' }}>开发中...</p></div>
       default:
@@ -107,7 +108,6 @@ function App() {
             label="技能管理" 
             active={currentPage === 'skills'} 
             onClick={() => setCurrentPage('skills')} 
-            disabled
           />
           <NavItem 
             icon="⚙️" 
