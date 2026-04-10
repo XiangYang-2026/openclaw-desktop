@@ -132,4 +132,48 @@ ipcMain.handle('system:status', async () => {
   })
 })
 
+// ============ 节点管理 ============
+
+// 获取配对码
+ipcMain.handle('nodes:pairingCode', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['node', 'pairing-code'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
+// 刷新配对码
+ipcMain.handle('nodes:refreshPairing', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['node', 'pairing-code', '--refresh'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
+// 获取节点列表
+ipcMain.handle('nodes:list', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['node', 'list'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
 console.log('OpenClaw Desktop Main Process Started')

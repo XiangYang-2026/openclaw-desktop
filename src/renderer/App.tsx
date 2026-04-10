@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
+import Nodes from './pages/Nodes'
+
+type Page = 'gateway' | 'nodes' | 'channels' | 'skills' | 'settings'
 
 function App() {
+  const [currentPage, setCurrentPage] = useState<Page>('gateway')
   const [gatewayStatus, setGatewayStatus] = useState<string>('未检查')
   const [systemStatus, setSystemStatus] = useState<string>('未检查')
   const [loading, setLoading] = useState(false)
-  const [logs, setLogs] = useState<string[]>([])
 
   // 检查网关状态
   const checkGatewayStatus = async () => {
@@ -17,6 +20,167 @@ function App() {
     }
     setLoading(false)
   }
+
+  // 检查系统状态
+  const checkSystemStatus = async () => {
+    setLoading(true)
+    try {
+      const result = await window.electron.system.status()
+      setSystemStatus(result.success ? '✅ 正常' : `⚠️ ${result.output}`)
+    } catch (err) {
+      setSystemStatus(`❌ 错误：${err instanceof Error ? err.message : String(err)}`)
+    }
+    setLoading(false)
+  }
+
+  // 初始化加载
+  useEffect(() => {
+    checkGatewayStatus()
+    checkSystemStatus()
+  }, [])
+
+  // 渲染页面内容
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'gateway':
+        return <GatewayPage 
+          gatewayStatus={gatewayStatus} 
+          systemStatus={systemStatus}
+          loading={loading}
+          setLoading={setLoading}
+          checkGatewayStatus={checkGatewayStatus}
+        />
+      case 'nodes':
+        return <Nodes />
+      case 'channels':
+        return <div style={{ padding: '20px' }}><h2>📺 频道管理</h2><p style={{ color: '#999' }}>开发中...</p></div>
+      case 'skills':
+        return <div style={{ padding: '20px' }}><h2>🧩 技能管理</h2><p style={{ color: '#999' }}>开发中...</p></div>
+      case 'settings':
+        return <div style={{ padding: '20px' }}><h2>⚙️ 设置</h2><p style={{ color: '#999' }}>开发中...</p></div>
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui, sans-serif' }}>
+      {/* 侧边栏导航 */}
+      <div style={{
+        width: '220px',
+        background: '#001529',
+        padding: '20px 0',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <div style={{
+          padding: '0 20px 20px',
+          borderBottom: '1px solid #002140',
+          marginBottom: '20px',
+        }}>
+          <h1 style={{ margin: 0, fontSize: '20px', color: '#fff' }}>🦞 OpenClaw</h1>
+          <p style={{ margin: '5px 0 0', fontSize: '12px', color: '#888' }}>Desktop</p>
+        </div>
+
+        <nav style={{ flex: 1 }}>
+          <NavItem 
+            icon="🏠" 
+            label="网关管理" 
+            active={currentPage === 'gateway'} 
+            onClick={() => setCurrentPage('gateway')} 
+          />
+          <NavItem 
+            icon="📱" 
+            label="节点管理" 
+            active={currentPage === 'nodes'} 
+            onClick={() => setCurrentPage('nodes')} 
+          />
+          <NavItem 
+            icon="📺" 
+            label="频道管理" 
+            active={currentPage === 'channels'} 
+            onClick={() => setCurrentPage('channels')} 
+            disabled
+          />
+          <NavItem 
+            icon="🧩" 
+            label="技能管理" 
+            active={currentPage === 'skills'} 
+            onClick={() => setCurrentPage('skills')} 
+            disabled
+          />
+          <NavItem 
+            icon="⚙️" 
+            label="设置" 
+            active={currentPage === 'settings'} 
+            onClick={() => setCurrentPage('settings')} 
+            disabled
+          />
+        </nav>
+
+        <div style={{
+          padding: '15px 20px',
+          borderTop: '1px solid #002140',
+          fontSize: '12px',
+          color: '#888',
+        }}>
+          <div style={{ marginBottom: '5px' }}>网关：{gatewayStatus}</div>
+          <div>系统：{systemStatus}</div>
+        </div>
+      </div>
+
+      {/* 主内容区 */}
+      <div style={{ flex: 1, overflow: 'auto', background: '#f0f2f5' }}>
+        {renderPage()}
+      </div>
+    </div>
+  )
+}
+
+// 导航项组件
+function NavItem({ icon, label, active, onClick, disabled }: {
+  icon: string
+  label: string
+  active: boolean
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <div
+      onClick={disabled ? undefined : onClick}
+      style={{
+        padding: '12px 20px',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        background: active ? '#1890ff' : 'transparent',
+        color: disabled ? '#444' : active ? '#fff' : '#aaa',
+        fontSize: '14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        transition: 'all 0.2s',
+      }}
+    >
+      <span style={{ fontSize: '16px' }}>{icon}</span>
+      <span>{label}</span>
+    </div>
+  )
+}
+
+// 网关管理页面组件
+function GatewayPage({ 
+  gatewayStatus, 
+  systemStatus, 
+  loading, 
+  setLoading,
+  checkGatewayStatus,
+}: {
+  gatewayStatus: string
+  systemStatus: string
+  loading: boolean
+  setLoading: (v: boolean) => void
+  checkGatewayStatus: () => void
+}) {
+  const [logs, setLogs] = useState<string[]>([])
 
   // 启动网关
   const startGateway = async () => {
@@ -50,55 +214,44 @@ function App() {
     }
   }
 
-  // 检查系统状态
-  const checkSystemStatus = async () => {
-    setLoading(true)
-    try {
-      const result = await window.electron.system.status()
-      setSystemStatus(result.success ? '✅ 正常' : `⚠️ ${result.output}`)
-    } catch (err) {
-      setSystemStatus(`❌ 错误：${err instanceof Error ? err.message : String(err)}`)
-    }
-    setLoading(false)
-  }
-
-  // 初始化加载
-  useEffect(() => {
-    checkGatewayStatus()
-    checkSystemStatus()
-  }, [])
-
   return (
-    <div style={{ padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
-      <h1 style={{ marginBottom: '30px' }}>🦞 OpenClaw Desktop</h1>
+    <div style={{ padding: '20px' }}>
+      <h2 style={{ marginBottom: '20px' }}>🏠 网关管理</h2>
 
       {/* 状态卡片 */}
       <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
         <div style={{
           flex: 1,
           padding: '20px',
-          background: '#f5f5f5',
+          background: '#fff',
           borderRadius: '8px',
-          border: '1px solid #ddd',
+          border: '1px solid #e8e8e8',
         }}>
-          <h3 style={{ margin: '0 0 10px 0' }}>网关状态</h3>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#666' }}>网关状态</h3>
           <p style={{ fontSize: '18px', margin: 0 }}>{gatewayStatus}</p>
         </div>
 
         <div style={{
           flex: 1,
           padding: '20px',
-          background: '#f5f5f5',
+          background: '#fff',
           borderRadius: '8px',
-          border: '1px solid #ddd',
+          border: '1px solid #e8e8e8',
         }}>
-          <h3 style={{ margin: '0 0 10px 0' }}>系统状态</h3>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#666' }}>系统状态</h3>
           <p style={{ fontSize: '18px', margin: 0 }}>{systemStatus}</p>
         </div>
       </div>
 
       {/* 控制按钮 */}
-      <div style={{ marginBottom: '30px' }}>
+      <div style={{
+        padding: '20px',
+        background: '#fff',
+        borderRadius: '8px',
+        border: '1px solid #e8e8e8',
+        marginBottom: '20px',
+      }}>
+        <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#666' }}>快速操作</h3>
         <button
           onClick={startGateway}
           disabled={loading}

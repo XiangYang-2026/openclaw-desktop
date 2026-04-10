@@ -14,6 +14,13 @@ contextBridge.exposeInMainWorld('electron', {
     status: () => ipcRenderer.invoke('system:status'),
   },
   
+  // 节点管理
+  nodes: {
+    pairingCode: () => ipcRenderer.invoke('nodes:pairingCode'),
+    refreshPairing: () => ipcRenderer.invoke('nodes:refreshPairing'),
+    list: () => ipcRenderer.invoke('nodes:list'),
+  },
+  
   // 通用命令执行（支持实时输出）
   command: {
     exec: (args, callbacks) => {

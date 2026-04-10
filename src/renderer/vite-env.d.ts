@@ -10,6 +10,11 @@ interface Window {
     system: {
       status: () => Promise<{ success: boolean; output: string; error: string }>
     }
+    nodes: {
+      pairingCode: () => Promise<{ success: boolean; output: string; error: string }>
+      refreshPairing: () => Promise<{ success: boolean; output: string; error: string }>
+      list: () => Promise<{ success: boolean; output: string; error: string }>
+    }
     command: {
       exec: (
         args: string[],
