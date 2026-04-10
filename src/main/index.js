@@ -95,11 +95,14 @@ function runOpenClawCommand(args, callback) {
 ipcMain.handle('gateway:status', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['gateway', 'status'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -109,11 +112,14 @@ ipcMain.handle('gateway:status', async () => {
 ipcMain.handle('gateway:start', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['gateway', 'start'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -123,11 +129,14 @@ ipcMain.handle('gateway:start', async () => {
 ipcMain.handle('gateway:stop', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['gateway', 'stop'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
@@ -144,11 +153,14 @@ ipcMain.on('command:exec', (event, { commandId, args }) => {
 ipcMain.handle('system:status', async () => {
   return new Promise((resolve) => {
     let result = ''
+    let errorResult = ''
     runOpenClawCommand(['status'], (type, data) => {
       if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: data.error })
+        resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
         result += data
+      } else if (type === 'error') {
+        errorResult += data
       }
     })
   })
