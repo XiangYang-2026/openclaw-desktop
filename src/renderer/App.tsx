@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Nodes from './pages/Nodes'
 import Channels from './pages/Channels'
 import Skills from './pages/Skills'
+import Settings from './pages/Settings'
 
 type Page = 'gateway' | 'nodes' | 'channels' | 'skills' | 'settings'
 
@@ -59,7 +60,7 @@ function App() {
       case 'skills':
         return <Skills />
       case 'settings':
-        return <div style={{ padding: '20px' }}><h2>⚙️ 设置</h2><p style={{ color: '#999' }}>开发中...</p></div>
+        return <Settings />
       default:
         return null
     }
@@ -114,7 +115,6 @@ function App() {
             label="设置" 
             active={currentPage === 'settings'} 
             onClick={() => setCurrentPage('settings')} 
-            disabled
           />
         </nav>
 
