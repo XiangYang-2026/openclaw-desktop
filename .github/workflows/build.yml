@@ -31,16 +31,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload artifacts
+      - name: Upload artifacts (NSIS Installer)
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClaw-Desktop-Windows
+          name: OpenClaw-Desktop-Setup-EXE
           path: dist-release/*.exe
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (ZIP Portable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClaw-Desktop-Portable-ZIP
+          path: dist-release/*.zip
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (Portable EXE)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClaw-Desktop-Portable-EXE
+          path: dist-release/*.exe
+          if-no-files-found: ignore
 
       - name: Create Release (if tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: dist-release/*.exe
+          files: dist-release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
