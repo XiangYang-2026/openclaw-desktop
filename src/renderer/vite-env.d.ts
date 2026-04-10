@@ -15,6 +15,11 @@ interface Window {
       refreshPairing: () => Promise<{ success: boolean; output: string; error: string }>
       list: () => Promise<{ success: boolean; output: string; error: string }>
     }
+    channels: {
+      list: () => Promise<{ success: boolean; output: string; error: string }>
+      status: () => Promise<{ success: boolean; output: string; error: string }>
+      testMessage: (channel: string, target: string, message: string) => Promise<{ success: boolean; output: string; error: string }>
+    }
     command: {
       exec: (
         args: string[],

@@ -176,4 +176,49 @@ ipcMain.handle('nodes:list', async () => {
   })
 })
 
+// ============ 频道管理 ============
+
+// 获取频道列表
+ipcMain.handle('channels:list', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['channels', 'list'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
+// 获取频道状态
+ipcMain.handle('channels:status', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    runOpenClawCommand(['channels', 'status'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
+// 发送测试消息
+ipcMain.handle('channels:testMessage', async (event, { channel, target, message }) => {
+  return new Promise((resolve) => {
+    let result = ''
+    const args = ['message', 'send', '--channel', channel, '--target', target, '--message', message]
+    runOpenClawCommand(args, (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: data.error })
+      } else if (type === 'output') {
+        result += data
+      }
+    })
+  })
+})
+
 console.log('OpenClaw Desktop Main Process Started')

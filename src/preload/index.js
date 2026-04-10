@@ -21,6 +21,13 @@ contextBridge.exposeInMainWorld('electron', {
     list: () => ipcRenderer.invoke('nodes:list'),
   },
   
+  // 频道管理
+  channels: {
+    list: () => ipcRenderer.invoke('channels:list'),
+    status: () => ipcRenderer.invoke('channels:status'),
+    testMessage: (channel, target, message) => ipcRenderer.invoke('channels:testMessage', { channel, target, message }),
+  },
+  
   // 通用命令执行（支持实时输出）
   command: {
     exec: (args, callbacks) => {
