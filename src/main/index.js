@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
+const fs = require('fs')
 
 let mainWindow
 
@@ -21,7 +22,28 @@ function createWindow() {
     mainWindow.webContents.openDevTools()
   } else {
     // 生产模式加载构建文件
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    const appPath = app.getAppPath()
+    let indexPath
+    
+    // 尝试多个可能的路径
+    const possiblePaths = [
+      path.join(appPath, 'dist', 'index.html'),
+      path.join(path.dirname(appPath), 'dist', 'index.html'),
+      path.join(process.resourcesPath, 'app', 'dist', 'index.html'),
+    ]
+    
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        indexPath = p
+        break
+      }
+    }
+    
+    if (indexPath) {
+      mainWindow.loadFile(indexPath)
+    } else {
+      console.error('Could not find index.html in any of:', possiblePaths)
+    }
   }
 }
 
