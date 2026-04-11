@@ -513,23 +513,6 @@ ipcMain.handle('channels:list', async () => {
   })
 })
 
-// 会话管理（真实网关 API）
-ipcMain.handle('sessions:list', async () => {
-  return new Promise((resolve) => {
-    let result = ''
-    let errorResult = ''
-    runOpenClawCommand(['sessions', 'list'], (type, data) => {
-      if (type === 'close') {
-        resolve({ success: data.code === 0, output: result, error: errorResult })
-      } else if (type === 'output') {
-        result += data
-      } else if (type === 'error') {
-        errorResult += data
-      }
-    })
-  })
-})
-
 ipcMain.handle('message:send', async (event, { message, model, channel, skills }) => {
   return new Promise((resolve) => {
     let result = ''
