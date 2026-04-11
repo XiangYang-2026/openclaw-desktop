@@ -55,8 +55,10 @@ export default function Skills() {
   const loadInstalled = async () => {
     setLoading(true); setPageError(null)
     try {
+      log('🔄 开始加载已安装技能...')
       const r = await window.electron.skills.list()
-      log(`📥 技能列表响应：${r?.success?'成功':'失败'}，output=${r?.output?.length||0}字`)
+      log(`📥 IPC 响应：success=${r?.success}, output.length=${r?.output?.length||0}, error=${r?.error||'none'}`)
+      
       if(!r || !r.output) {
         log('⚠️ 未获取到技能列表，显示内置技能')
         const builtinsOnly = BUILTIN_SKILLS.map((s,i)=>({...s, id:`builtin-${i}`, installed:true}))
@@ -64,19 +66,24 @@ export default function Skills() {
         setLoading(false)
         return
       }
-      const lines = r.output.split('\n').filter(l=>l.trim() && !l.includes('npm WARN'))
-      log(`📝 解析 ${lines.length} 行技能数据`)
+      
+      const lines = r.output.split('\n').filter(l=>l.trim() && !l.includes('npm WARN') && !l.includes('┌') && !l.includes('│') && !l.includes('└') && !l.includes('├') && !l.includes('┤') && !l.includes('┬') && !l.includes('┴') && !l.includes('─') && !l.includes('Skill') && !l.includes('Status'))
+      log(`📝 解析 ${lines.length} 行技能数据（过滤表格线）`)
+      
       const parsed = lines.map((l,i) => {
         const parts = l.trim().split(/\s+/)
         return { id:`inst-${i}`, name:parts[0]||'unknown', version:parts[1]||'1.0.0', description:'已安装技能', author:'Unknown', installed:true, builtin:false, category:'other', help:'', downloads:0 }
       })
+      
       const builtinNames = BUILTIN_SKILLS.map(s=>s.name)
       const merged = [...BUILTIN_SKILLS.map((s,i)=>({...s, id:`builtin-${i}`, installed:true})), ...parsed.filter(p=>!builtinNames.includes(p.name))]
-      setInstalled(merged)
+      
       log(`✅ 加载 ${merged.length} 个已安装技能（${BUILTIN_SKILLS.length} 内置 + ${parsed.length} 第三方）`)
+      setInstalled(merged)
     } catch(e) { 
       const msg = e instanceof Error ? e.message : String(e)
       log(`❌ 加载失败：${msg}`)
+      console.error('Skills load error:', e)
       // 失败时至少显示内置技能（防止白屏）
       const builtinsOnly = BUILTIN_SKILLS.map((s,i)=>({...s, id:`builtin-${i}`, installed:true}))
       setInstalled(builtinsOnly)

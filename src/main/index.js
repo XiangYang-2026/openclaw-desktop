@@ -324,15 +324,17 @@ function getOpenClawInstallPath() {
     // 使用 npm list -g 查找全局安装路径（最准确的方法）
     const output = execSync('npm list -g openclaw', { encoding: 'utf8' })
     const lines = output.split('\n')
-    // 查找包含 openclaw@ 的行，提取路径
-    for (const line of lines) {
-      const match = line.match(/-> openclaw@([\d.]+)/)
-      if (match) {
-        // npm list -g 返回的第一行通常包含路径信息
-        const pathMatch = lines[0].match(/^(.+)$/)
-        if (pathMatch && pathMatch[1].trim()) {
-          return pathMatch[1].trim()
-        }
+    // npm list -g 第一行格式：/home/user/.nvm/versions/node/v22.22.2/lib
+    // 需要添加 /node_modules/openclaw
+    if (lines.length > 0 && lines[0].trim()) {
+      const basePath = lines[0].trim()
+      const fullPath = path.join(basePath, 'node_modules', 'openclaw')
+      try {
+        const { accessSync } = require('fs')
+        accessSync(fullPath)
+        return fullPath
+      } catch (e) {
+        // 路径不存在，继续尝试其他方法
       }
     }
     // 备用：从输出中提取路径
