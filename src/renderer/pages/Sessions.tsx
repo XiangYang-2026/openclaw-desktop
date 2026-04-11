@@ -6,10 +6,10 @@ interface Session {
 }
 
 interface Message { id: string; role: 'user'|'assistant'|'system'; content: string; timestamp: string }
-
 interface Model { id: string; name: string; providerName: string }
 interface Channel { id: string; name: string; type: string }
 interface Skill { id: string; name: string; description: string }
+interface GatewayStatus { running: boolean; version?: string; port?: number }
 
 const ts = () => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}` }
 
@@ -19,96 +19,192 @@ export default function Sessions() {
   const [models, setModels] = useState<Model[]>([])
   const [channels, setChannels] = useState<Channel[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
-  const [gatewayRunning, setGatewayRunning] = useState(false)
+  const [gateway, setGateway] = useState<GatewayStatus>({running:false})
   const [loading, setLoading] = useState(false)
   const [input, setInput] = useState('')
   const [logs, setLogs] = useState<string[]>([])
   const [showConfig, setShowConfig] = useState(false)
   const [editingId, setEditingId] = useState<string|null>(null)
   const [editName, setEditName] = useState('')
+  const [pageError, setPageError] = useState<string|null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const log = (m:string) => setLogs(p=>[...p, `[${ts()}] ${m}`])
+  const logError = (m:string,e?:any) => { 
+    const msg = e instanceof Error ? e.message : String(e)
+    setLogs(p=>[...p, `[${ts()}] ❌ ${m}: ${msg}`])
+    setPageError(m)
+  }
   const selected = sessions.find(s=>s.id===selectedId)
 
   const loadModels = async () => {
     try {
       const stored = localStorage.getItem('oc_models')
       setModels(stored ? JSON.parse(stored) : [{id:'m-1',name:'Qwen3.5-Plus',providerName:'阿里云百炼'},{id:'m-2',name:'GPT-4',providerName:'OpenAI'}])
-    } catch(e) { console.error(e) }
+    } catch(e) { logError('加载模型失败',e) }
   }
 
   const loadChannels = async () => {
     try {
       const stored = localStorage.getItem('oc_channels')
       setChannels(stored ? JSON.parse(stored) : [{id:'ch-1',name:'微信 - 个人号',type:'wechat'},{id:'ch-2',name:'Telegram 群组',type:'telegram'}])
-    } catch(e) { console.error(e) }
+    } catch(e) { logError('加载频道失败',e) }
   }
 
   const loadSkills = async () => {
     try {
       const stored = localStorage.getItem('oc_skills')
       setSkills(stored ? JSON.parse(stored) : [{id:'s-1',name:'browser-automation',description:'浏览器自动化'},{id:'s-2',name:'multi-search-engine',description:'多搜索引擎'}])
-    } catch(e) { console.error(e) }
+    } catch(e) { logError('加载技能失败',e) }
   }
 
   const checkGateway = async () => {
     try {
       const res = await window.electron.system.status()
-      setGatewayRunning(res.gatewayRunning||false)
-      if(!res.gatewayRunning) log('⚠️ 网关未启动，聊天功能暂不可用')
-    } catch(e) { setGatewayRunning(false) }
+      setGateway({running:res.gatewayRunning||false})
+      if(res.gatewayRunning) log('✅ 网关已启动')
+      else log('⚠️ 网关未启动，聊天功能暂不可用')
+    } catch(e) { logError('检测网关状态失败',e) }
   }
 
-  const loadSessions = () => {
-    const stored = localStorage.getItem('oc_sessions')
-    const list = stored ? JSON.parse(stored) : []
-    setSessions(list)
-    if(list.length>0 && !selectedId) setSelectedId(list[0].id)
-    log(`加载 ${list.length} 个会话`)
+  const loadSessions = async () => {
+    try {
+      const stored = localStorage.getItem('oc_sessions')
+      let list:Session[] = stored ? JSON.parse(stored) : []
+      
+      // 自动创建 main 会话（如果不存在）
+      if(!list.some(s=>s.id==='main')) {
+        const mainSession:Session = { 
+          id:'main', name:'💬 主对话', model:'Qwen3.5-Plus', channel:'', skills:[],
+          createdAt:ts(), lastActivity:ts(), messages:[] 
+        }
+        list = [mainSession, ...list]
+        localStorage.setItem('oc_sessions', JSON.stringify(list))
+        log('✨ 自动创建主对话会话')
+      }
+      
+      setSessions(list)
+      
+      // 自动选择 main 会话（如果没有选中或选中的不存在）
+      if(!selectedId || !list.some(s=>s.id===selectedId)) {
+        setSelectedId('main')
+        log('📬 自动加载主对话')
+      }
+      
+      log(`📋 加载 ${list.length} 个会话`)
+    } catch(e) { logError('加载会话失败',e) }
   }
 
-  const saveSessions = (d:Session[]) => { setSessions(d); localStorage.setItem('oc_sessions', JSON.stringify(d)) }
+  const saveSessions = (data:Session[]) => { 
+    try {
+      setSessions(data)
+      localStorage.setItem('oc_sessions', JSON.stringify(data))
+    } catch(e) { logError('保存会话失败',e) }
+  }
 
   const createSession = () => {
-    const newS:Session = { id:`s-${Date.now()}`,name:`新会话 ${sessions.length+1}`,model:'',channel:'',skills:[],createdAt:ts(),lastActivity:ts(),messages:[] }
-    saveSessions([...sessions,newS]); setSelectedId(newS.id); log(`创建新会话：${newS.name}`); setShowConfig(true)
+    const newS:Session = { 
+      id:`s-${Date.now()}`,
+      name:`新会话 ${sessions.length+1}`,
+      model:models[0]?.name||'',
+      channel:'',
+      skills:[],
+      createdAt:ts(),
+      lastActivity:ts(),
+      messages:[] 
+    }
+    saveSessions([sessions[0], newS, ...sessions.slice(1)])
+    setSelectedId(newS.id)
+    log(`➕ 创建新会话：${newS.name}`)
+    setShowConfig(true)
   }
 
   const deleteSession = (id:string) => {
+    if(id==='main') { log('⚠️ 主对话不能删除'); return }
     const s = sessions.find(x=>x.id===id)
-    if(s) { saveSessions(sessions.filter(x=>x.id!==id)); if(selectedId===id) setSelectedId(null); log(`删除会话：${s.name}`) }
+    if(s) { 
+      const filtered = sessions.filter(x=>x.id!==id)
+      saveSessions(filtered)
+      if(selectedId===id) setSelectedId('main')
+      log(`🗑️ 删除会话：${s.name}`)
+    }
   }
 
   const renameSession = (id:string) => {
     const s = sessions.find(x=>x.id===id)
-    if(s && editName) { saveSessions(sessions.map(x=>x.id===id?{...x,name:editName}:x)); log(`重命名会话：${editName}`); setEditingId(null); setEditName('') }
+    if(s && editName) { 
+      saveSessions(sessions.map(x=>x.id===id?{...x,name:editName}:x))
+      log(`✏️ 重命名会话：${editName}`)
+      setEditingId(null)
+      setEditName('')
+    }
   }
 
   const clearMessages = (id:string) => {
     const s = sessions.find(x=>x.id===id)
-    if(s) { saveSessions(sessions.map(x=>x.id===id?{...x,messages:[]}:x)); log(`清空会话消息：${s.name}`) }
+    if(s) { 
+      saveSessions(sessions.map(x=>x.id===id?{...x,messages:[],lastActivity:ts()}:x))
+      log(`🧹 清空会话消息：${s.name}`)
+    }
   }
 
   const sendMessage = async () => {
-    if(!input.trim()||!selectedId||!gatewayRunning) return
+    if(!input.trim()||!selectedId) return
+    if(!gateway.running) { log('❌ 网关未启动，无法发送消息'); return }
+    
     const msg:Message = { id:`m-${Date.now()}`,role:'user',content:input.trim(),timestamp:ts() }
     const updated = sessions.map(s=>s.id===selectedId?{...s,messages:[...s.messages,msg],lastActivity:ts()}:s)
-    saveSessions(updated); setInput(''); log(`发送消息 (${input.length} 字)`)
-    // 模拟模型响应
+    saveSessions(updated)
+    log(`📤 发送消息 (${input.length} 字)`)
+    setInput('')
+    
+    // 模拟模型响应（后续集成真实网关 API）
     setTimeout(()=>{
-      const resp:Message = { id:`m-${Date.now()+1}`,role:'assistant',content:`收到你的消息：${msg.content}\n\n（这是模拟响应，实际应调用网关 API）`,timestamp:ts() }
+      const session = sessions.find(s=>s.id===selectedId)
+      const resp:Message = { 
+        id:`m-${Date.now()+1}`,
+        role:'assistant',
+        content: `✅ 收到你的消息：${msg.content}\n\n🤖 这是模拟响应，后续将集成真实网关 API\n\n当前会话配置：\n- 模型：${session?.model||'默认'}\n- 频道：${session?.channel||'无'}\n- 技能：${session?.skills?.length||0}个`,
+        timestamp:ts() 
+      }
       const final = updated.map(s=>s.id===selectedId?{...s,messages:[...s.messages,resp]}:s)
-      saveSessions(final); log(`收到模型响应`)
-    },1000)
+      saveSessions(final)
+      log(`✅ 收到模型响应 (${resp.content.length} 字)`)
+    },800)
   }
 
   const handleKeyDown = (e:React.KeyboardEvent) => {
     if(e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  useEffect(()=>{ loadSessions();loadModels();loadChannels();loadSkills();checkGateway();log('会话管理页面初始化完成') },[])
-  useEffect(()=>{ messagesEndRef.current?.scrollIntoView({behavior:'smooth'}) },[selected?.messages])
+  // 页面初始化：全自动加载
+  useEffect(()=>{ 
+    const init = async () => {
+      setPageError(null)
+      await loadModels()
+      await loadChannels()
+      await loadSkills()
+      await checkGateway()
+      await loadSessions()
+      log('🚀 会话管理页面初始化完成')
+    }
+    init().catch(e=>logError('初始化失败',e))
+  }, [])
+
+  // 自动刷新会话列表（每 5 秒）
+  useEffect(()=>{
+    if(!autoRefresh) return
+    const timer = setInterval(()=>{
+      loadSessions().catch(e=>console.error(e))
+    }, 5000)
+    return ()=>clearInterval(timer)
+  }, [autoRefresh])
+
+  // 滚动到底部
+  useEffect(()=>{ 
+    messagesEndRef.current?.scrollIntoView({behavior:'smooth'}) 
+  },[selected?.messages])
 
   const ConfigModal = () => {
     if(!showConfig||!selected) return null
@@ -118,7 +214,8 @@ export default function Sessions() {
     const toggle = (sid:string) => setSkillList(p=>p.includes(sid)?p.filter(s=>s!==sid):[...p,sid])
     const save = () => {
       saveSessions(sessions.map(s=>s.id===selected.id?{...s,model,channel,skills:skillList}:s))
-      log(`更新会话配置：${selected.name}`); setShowConfig(false)
+      log(`⚙️ 更新会话配置：${selected.name}`)
+      setShowConfig(false)
     }
     return (
       <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={()=>setShowConfig(false)}>
@@ -138,22 +235,24 @@ export default function Sessions() {
       {/* 左侧会话列表 */}
       <div style={{width:'280px',background:'#fff',border:'1px solid #e8e8e8',borderRadius:'8px',display:'flex',flexDirection:'column'}}>
         <div style={{padding:'15px',borderBottom:'1px solid #e8e8e8',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <h3 style={{margin:0,fontSize:'14px',color:'#666'}}>💬 会话</h3>
+          <h3 style={{margin:0,fontSize:'14px',color:'#666'}}>💬 会话 ({sessions.length})</h3>
           <button onClick={createSession} style={{padding:'6px 12px',background:'#1890ff',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer',fontSize:'12px'}}>➕ 新建</button>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'10px'}}>
           {sessions.length===0 ? (
-            <p style={{color:'#999',textAlign:'center',padding:'20px',fontSize:'13px'}}>暂无会话</p>
+            <p style={{color:'#999',textAlign:'center',padding:'20px',fontSize:'13px'}}>🔄 加载中...</p>
           ) : (
             sessions.map(s=>(
-              <div key={s.id} onClick={()=>setSelectedId(s.id)} style={{padding:'12px',marginBottom:'8px',background:selectedId===s.id?'#e6f7ff':'#f5f5f5',border:`1px solid ${selectedId===s.id?'#1890ff':'#e8e8e8'}`,borderRadius:'6px',cursor:'pointer'}}>
+              <div key={s.id} onClick={()=>setSelectedId(s.id)} style={{padding:'12px',marginBottom:'8px',background:selectedId===s.id?'#e6f7ff':'#f5f5f5',border:`1px solid ${selectedId===s.id?'#1890ff':'#e8e8e8'}`,borderRadius:'6px',cursor:'pointer',transition:'all 0.2s'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   {editingId===s.id ? (
                     <input value={editName} onChange={e=>setEditName(e.target.value)} onBlur={()=>renameSession(s.id)} onKeyDown={e=>e.key==='Enter'&&renameSession(s.id)} autoFocus style={{width:'120px',padding:'4px',fontSize:'13px'}}/>
                   ) : (
-                    <span style={{fontWeight:'bold',fontSize:'13px'}} onDoubleClick={()=>{setEditingId(s.id);setEditName(s.name)}}>{s.name}</span>
+                    <span style={{fontWeight:'bold',fontSize:'13px',color:s.id==='main'?'#1890ff':'#333'}} onDoubleClick={()=>{setEditingId(s.id);setEditName(s.name)}}>
+                      {s.id==='main'?'💬 ':'📝 '}{s.name}
+                    </span>
                   )}
-                  <span style={{fontSize:'11px',color:'#999'}}>{s.model||'未绑定模型'}</span>
+                  <span style={{fontSize:'11px',color:'#999'}}>{s.model||'未绑定'}</span>
                 </div>
                 <div style={{fontSize:'11px',color:'#999',marginTop:'5px',display:'flex',gap:'8px'}}>
                   <span>📅 {s.lastActivity?.split(' ')[0]||''}</span>
@@ -162,7 +261,7 @@ export default function Sessions() {
                 <div style={{display:'flex',gap:'5px',marginTop:'8px'}}>
                   <button onClick={(e)=>{e.stopPropagation();setShowConfig(true);setSelectedId(s.id)}} style={{flex:1,padding:'4px',background:'#1890ff',color:'#fff',border:'none',borderRadius:'3px',cursor:'pointer',fontSize:'11px'}}>⚙️</button>
                   <button onClick={(e)=>{e.stopPropagation();clearMessages(s.id)}} style={{flex:1,padding:'4px',background:'#faad14',color:'#fff',border:'none',borderRadius:'3px',cursor:'pointer',fontSize:'11px'}}>🧹</button>
-                  <button onClick={(e)=>{e.stopPropagation();deleteSession(s.id)}} style={{flex:1,padding:'4px',background:'#ff4d4f',color:'#fff',border:'none',borderRadius:'3px',cursor:'pointer',fontSize:'11px'}}>🗑️</button>
+                  {s.id!=='main' && <button onClick={(e)=>{e.stopPropagation();deleteSession(s.id)}} style={{flex:1,padding:'4px',background:'#ff4d4f',color:'#fff',border:'none',borderRadius:'3px',cursor:'pointer',fontSize:'11px'}}>🗑️</button>}
                 </div>
               </div>
             ))
@@ -220,8 +319,8 @@ export default function Sessions() {
             {/* 输入区域 */}
             <div style={{padding:'15px',borderTop:'1px solid #e8e8e8',background:'#fff'}}>
               <div style={{display:'flex',gap:'10px',alignItems:'flex-end'}}>
-                <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={gatewayRunning?'输入消息... (Enter 发送，Shift+Enter 换行)':'网关未启动，请先启动网关'} rows={2} disabled={!gatewayRunning} style={{flex:1,padding:'12px',border:'1px solid #d9d9d9',borderRadius:'8px',fontSize:'14px',resize:'none',opacity:!gatewayRunning?0.6:1}}/>
-                <button onClick={sendMessage} disabled={!input.trim()||!gatewayRunning} style={{padding:'12px 24px',background:!input.trim()||!gatewayRunning?'#d9d9d9':'#1890ff',color:'#fff',border:'none',borderRadius:'8px',cursor:!input.trim()||!gatewayRunning?'not-allowed':'pointer',fontSize:'14px',minWidth:'100px'}}>📤 发送</button>
+                <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={gateway.running?'输入消息... (Enter 发送，Shift+Enter 换行)':'网关未启动，请先启动网关'} rows={2} disabled={!gateway.running} style={{flex:1,padding:'12px',border:'1px solid #d9d9d9',borderRadius:'8px',fontSize:'14px',resize:'none',opacity:!gateway.running?0.6:1}}/>
+                <button onClick={sendMessage} disabled={!input.trim()||!gateway.running} style={{padding:'12px 24px',background:!input.trim()||!gateway.running?'#d9d9d9':'#1890ff',color:'#fff',border:'none',borderRadius:'8px',cursor:!input.trim()||!gateway.running?'not-allowed':'pointer',fontSize:'14px',minWidth:'100px'}}>📤 发送</button>
               </div>
               <p style={{margin:'8px 0 0',fontSize:'12px',color:'#999'}}>💡 提示：Enter 发送 | Shift+Enter 换行</p>
             </div>
@@ -231,8 +330,14 @@ export default function Sessions() {
 
       {/* 底部日志区域 */}
       <div style={{position:'fixed',bottom:'20px',right:'20px',width:'400px',maxHeight:'200px',background:'#1e1e1e',color:'#d4d4d4',padding:'15px',borderRadius:'8px',fontFamily:'Consolas',fontSize:'12px',overflowY:'auto',boxShadow:'0 4px 12px rgba(0,0,0,0.15)'}}>
-        <h4 style={{margin:'0 0 10px 0',color:'#569cd6',fontSize:'13px'}}>📋 操作日志</h4>
-        {logs.length===0 ? <p style={{color:'#6a9955'}}>暂无日志</p> : logs.map((l,i)=><div key={i} style={{marginBottom:'4px'}}>{l}</div>)}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
+          <h4 style={{margin:0,color:'#569cd6',fontSize:'13px'}}>📋 操作日志</h4>
+          <label style={{fontSize:'11px',color:'#999',display:'flex',alignItems:'center',gap:'5px'}}>
+            <input type="checkbox" checked={autoRefresh} onChange={e=>setAutoRefresh(e.target.checked)}/> 自动刷新
+          </label>
+        </div>
+        {pageError && <div style={{padding:'5px',background:'#fff1f0',border:'1px solid #ffa39e',borderRadius:'4px',marginBottom:'8px',color:'#ff4d4f',fontSize:'11px'}}>⚠️ {pageError}</div>}
+        {logs.length===0 ? <p style={{color:'#6a9955'}}>暂无日志</p> : logs.slice(-50).map((l,i)=><div key={i} style={{marginBottom:'4px'}}>{l}</div>)}
       </div>
       <ConfigModal/>
     </div>
