@@ -159,13 +159,22 @@ export default function Sessions() {
     log(`📤 发送消息 (${input.length} 字)`)
     setInput('')
     
-    // 模拟模型响应（后续集成真实网关 API）
+    // 模拟模型响应（需要配置频道才能获得真实 AI 响应）
+    const session = sessions.find(s=>s.id===selectedId)
     setTimeout(()=>{
-      const session = sessions.find(s=>s.id===selectedId)
+      let response = `✅ 收到你的消息：${msg.content}\n\n`
+      if(session?.channel) {
+        response += `📺 频道：${session.channel}\n🤖 模型：${session.model||'默认'}\n🧩 技能：${session.skills?.length||0}个\n\n`
+        response += `💡 消息已通过频道发送，等待 AI 响应...`
+      } else {
+        response += `🤖 模型：${session?.model||'默认'}\n📺 频道：未配置\n🧩 技能：${session?.skills?.length||0}个\n\n`
+        response += `⚠️ 这是模拟响应\n\n`
+        response += `💡 提示：请在「频道管理」页面配置微信或其他频道，然后在会话配置中绑定该频道，即可获得真实 AI 响应！`
+      }
       const resp:Message = { 
         id:`m-${Date.now()+1}`,
         role:'assistant',
-        content: `✅ 收到你的消息：${msg.content}\n\n🤖 这是模拟响应，后续将集成真实网关 API\n\n当前会话配置：\n- 模型：${session?.model||'默认'}\n- 频道：${session?.channel||'无'}\n- 技能：${session?.skills?.length||0}个`,
+        content: response,
         timestamp:ts() 
       }
       const final = updated.map(s=>s.id===selectedId?{...s,messages:[...s.messages,resp]}:s)

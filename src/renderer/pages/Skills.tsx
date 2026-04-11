@@ -56,7 +56,16 @@ export default function Skills() {
     setLoading(true); setPageError(null)
     try {
       const r = await window.electron.skills.list()
-      const lines = r.output.split('\n').filter(l=>l.trim())
+      log(`📥 技能列表响应：${r?.success?'成功':'失败'}，output=${r?.output?.length||0}字`)
+      if(!r || !r.output) {
+        log('⚠️ 未获取到技能列表，显示内置技能')
+        const builtinsOnly = BUILTIN_SKILLS.map((s,i)=>({...s, id:`builtin-${i}`, installed:true}))
+        setInstalled(builtinsOnly)
+        setLoading(false)
+        return
+      }
+      const lines = r.output.split('\n').filter(l=>l.trim() && !l.includes('npm WARN'))
+      log(`📝 解析 ${lines.length} 行技能数据`)
       const parsed = lines.map((l,i) => {
         const parts = l.trim().split(/\s+/)
         return { id:`inst-${i}`, name:parts[0]||'unknown', version:parts[1]||'1.0.0', description:'已安装技能', author:'Unknown', installed:true, builtin:false, category:'other', help:'', downloads:0 }
@@ -64,8 +73,14 @@ export default function Skills() {
       const builtinNames = BUILTIN_SKILLS.map(s=>s.name)
       const merged = [...BUILTIN_SKILLS.map((s,i)=>({...s, id:`builtin-${i}`, installed:true})), ...parsed.filter(p=>!builtinNames.includes(p.name))]
       setInstalled(merged)
-      log(`加载 ${merged.length} 个已安装技能（${BUILTIN_SKILLS.length} 内置 + ${parsed.length} 第三方）`)
-    } catch(e) { logError('加载已安装技能失败',e) }
+      log(`✅ 加载 ${merged.length} 个已安装技能（${BUILTIN_SKILLS.length} 内置 + ${parsed.length} 第三方）`)
+    } catch(e) { 
+      const msg = e instanceof Error ? e.message : String(e)
+      log(`❌ 加载失败：${msg}`)
+      // 失败时至少显示内置技能（防止白屏）
+      const builtinsOnly = BUILTIN_SKILLS.map((s,i)=>({...s, id:`builtin-${i}`, installed:true}))
+      setInstalled(builtinsOnly)
+    }
     setLoading(false)
   }
 

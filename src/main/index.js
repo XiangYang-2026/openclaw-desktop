@@ -344,11 +344,15 @@ function getOpenClawInstallPath() {
     // npm list 失败，尝试其他方法
   }
   
-  // WSL2 环境：优先使用 Linux 风格路径
+  // WSL2 环境：优先使用 Linux 原生路径
   if (isWSL2) {
+    // WSL2 中 OpenClaw 安装在 Linux 文件系统，不是 Windows 路径
+    // 用户路径：/home/administrator/.nvm/versions/node/v22.22.2/lib/node_modules/openclaw
     const wslPaths = [
+      '/home/administrator/.nvm/versions/node/current/lib/node_modules/openclaw',
       path.join(os.homedir(), '.nvm', 'versions', 'node', 'current', 'lib', 'node_modules', 'openclaw'),
       path.join(os.homedir(), '.nvm', 'versions', 'node', process.version, 'lib', 'node_modules', 'openclaw'),
+      '/home/administrator/.nvm/versions/node/' + process.version + '/lib/node_modules/openclaw',
       '/home/' + (os.userInfo().username || 'user') + '/.nvm/versions/node/current/lib/node_modules/openclaw',
       '/usr/local/lib/node_modules/openclaw',
       '/usr/lib/node_modules/openclaw',
@@ -509,6 +513,43 @@ ipcMain.handle('channels:list', async () => {
   })
 })
 
+// 会话管理（真实网关 API）
+ipcMain.handle('sessions:list', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    let errorResult = ''
+    runOpenClawCommand(['sessions', 'list'], (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: errorResult })
+      } else if (type === 'output') {
+        result += data
+      } else if (type === 'error') {
+        errorResult += data
+      }
+    })
+  })
+})
+
+ipcMain.handle('message:send', async (event, { message, model, channel, skills }) => {
+  return new Promise((resolve) => {
+    let result = ''
+    let errorResult = ''
+    const args = ['message', 'send', '--message', message]
+    if (model) args.push('--model', model)
+    if (channel) args.push('--channel', channel)
+    if (skills && skills.length > 0) args.push('--skills', skills.join(','))
+    runOpenClawCommand(args, (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: errorResult })
+      } else if (type === 'output') {
+        result += data
+      } else if (type === 'error') {
+        errorResult += data
+      }
+    })
+  })
+})
+
 ipcMain.handle('channels:status', async () => {
   return new Promise((resolve) => {
     let result = ''
@@ -531,6 +572,23 @@ ipcMain.handle('channels:testMessage', async (event, { channel, target, message 
     let errorResult = ''
     const args = ['message', 'send', '--channel', channel, '--target', target, '--message', message]
     runOpenClawCommand(args, (type, data) => {
+      if (type === 'close') {
+        resolve({ success: data.code === 0, output: result, error: errorResult })
+      } else if (type === 'output') {
+        result += data
+      } else if (type === 'error') {
+        errorResult += data
+      }
+    })
+  })
+})
+
+// 模型管理
+ipcMain.handle('models:list', async () => {
+  return new Promise((resolve) => {
+    let result = ''
+    let errorResult = ''
+    runOpenClawCommand(['models', 'list'], (type, data) => {
       if (type === 'close') {
         resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {

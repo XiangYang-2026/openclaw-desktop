@@ -22,7 +22,19 @@ export default function Models() {
   const log = (m:string) => setLogs(p=>[...p, `[${ts()}] ${m}`])
   const loadSys = async () => { try { const r=await window.electron.system.status(); if(r.success){ setSysInfo({osInfo:r.osInfo||'未知',installPath:r.installPath||'未知',gatewayRunning:r.gatewayRunning||false}); log(`系统信息：操作系统 ${r.osInfo||'未知'}，OpenClaw 安装路径 ${r.installPath||'未知'}`) }} catch(e){console.error(e)} }
   const loadProv = async () => { setLoading(true); try{const s=localStorage.getItem('oc_prov'); setProviders(s?JSON.parse(s):[]); if(s)log(`加载 ${JSON.parse(s).length} 个供应商`)}catch(e){log(`加载失败:${e}`)}; setLoading(false) }
-  const loadMod = async () => { setLoading(true); try{const s=localStorage.getItem('oc_models'); setModels(s?JSON.parse(s):[]); if(s)log(`加载 ${JSON.parse(s).length} 个模型`)}catch(e){log(`加载失败:${e}`)}; setLoading(false) }
+  const loadMod = async () => { 
+    setLoading(true)
+    try {
+      // 备用：从 localStorage 加载（真实模型数据）
+      const s = localStorage.getItem('oc_models')
+      setModels(s ? JSON.parse(s) : [])
+      if(s) log(`加载 ${JSON.parse(s).length} 个模型（来自 localStorage）`)
+      else log('⚠️ 暂无已配置模型，请先添加供应商和模型')
+    } catch(e) {
+      log(`加载失败：${e}`)
+    }
+    setLoading(false)
+  }
   const saveProv = (d:Provider[]) => { setProviders(d); localStorage.setItem('oc_prov',JSON.stringify(d)) }
   const saveMod = (d:Model[]) => { setModels(d); localStorage.setItem('oc_models',JSON.stringify(d)) }
   const addProv = (p:any) => { const n={...p,id:`p-${Date.now()}`,status:p.apiKey||p.secretKey?'configured':'unconfigured'}; saveProv([...providers,n]); log(`添加供应商：${p.name}`); setProvModal(false) }
