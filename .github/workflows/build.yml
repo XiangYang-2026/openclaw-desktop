@@ -1,13 +1,25 @@
-name: Build Windows App
+name: Build All Platforms
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Build platform (all/windows/linux/macos)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows
+          - linux
+          - macos
 
 jobs:
   build-windows:
+    if: github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows'
     runs-on: windows-latest
 
     steps:
@@ -31,31 +43,101 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload artifacts (NSIS Installer)
+      - name: Upload artifacts (EXE Installer)
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClaw-Desktop-Setup-EXE
+          name: OpenClaw-Desktop-Windows-EXE
           path: dist-release/*.exe
           if-no-files-found: ignore
 
       - name: Upload artifacts (ZIP Portable)
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClaw-Desktop-Portable-ZIP
-          path: dist-release/*.zip
+          name: OpenClaw-Desktop-Windows-ZIP
+          path: dist-release/win-unpacked/**
           if-no-files-found: ignore
 
-      - name: Upload artifacts (Portable EXE)
+  build-linux:
+    if: github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Linux packages
+        run: npm run electron:build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts (AppImage)
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClaw-Desktop-Portable-EXE
-          path: dist-release/*.exe
+          name: OpenClaw-Desktop-Linux-AppImage
+          path: dist-release/*.AppImage
           if-no-files-found: ignore
 
-      - name: Create Release (if tag)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
+      - name: Upload artifacts (Snap)
+        uses: actions/upload-artifact@v4
         with:
-          files: dist-release/*
+          name: OpenClaw-Desktop-Linux-Snap
+          path: dist-release/*.snap
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (deb)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClaw-Desktop-Linux-deb
+          path: dist-release/*.deb
+          if-no-files-found: ignore
+
+  build-macos:
+    if: github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos'
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build macOS app
+        run: npm run electron:build
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts (DMG)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClaw-Desktop-macOS-DMG
+          path: dist-release/*.dmg
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (ZIP)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClaw-Desktop-macOS-ZIP
+          path: dist-release/mac-*/**
+          if-no-files-found: ignore
