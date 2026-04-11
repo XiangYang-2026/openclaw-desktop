@@ -200,13 +200,57 @@ ipcMain.handle('gateway:stop', async () => {
   })
 })
 
-// 获取操作系统详细信息
+// 检测是否在 WSL2 环境中运行
+function detectWSL2() {
+  try {
+    const { execSync } = require('child_process')
+    // 检查 /proc/version 是否包含 WSL 或 Microsoft 标识
+    const procVersion = execSync('cat /proc/version', { encoding: 'utf8' }).toLowerCase()
+    if (procVersion.includes('microsoft') || procVersion.includes('wsl')) {
+      return true
+    }
+    // 检查是否运行在 WSL 互操作模式下
+    if (process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP) {
+      return true
+    }
+  } catch (e) {
+    // 检测失败，返回 false
+  }
+  return false
+}
+
+// 获取操作系统详细信息（全自动平台检测）
 function getOSInfo() {
   const platform = process.platform
   const release = os.release()
   
-  if (platform === 'win32') {
-    // Windows 版本检测
+  // 优先检测 WSL2（即使在 Linux platform 下也可能是 WSL2）
+  const isWSL2 = platform === 'linux' && detectWSL2()
+  
+  if (isWSL2) {
+    // WSL2 环境：显示 WSL2 + Linux 发行版信息
+    const { execSync } = require('child_process')
+    try {
+      const output = execSync('cat /etc/os-release', { encoding: 'utf8' })
+      const lines = output.split('\n')
+      let name = 'Linux'
+      let version = ''
+      for (const line of lines) {
+        if (line.startsWith('PRETTY_NAME=')) {
+          const distroName = line.substring(12).replace(/"/g, '')
+          return `WSL2 • ${distroName}`
+        } else if (line.startsWith('NAME=')) {
+          name = line.substring(5).replace(/"/g, '')
+        } else if (line.startsWith('VERSION=')) {
+          version = line.substring(8).replace(/"/g, '')
+        }
+      }
+      return `WSL2 • ${name}${version ? ' ' + version : ''}`
+    } catch (e) {
+      return `WSL2 • Linux ${release}`
+    }
+  } else if (platform === 'win32') {
+    // Windows 原生环境
     const { execSync } = require('child_process')
     try {
       const output = execSync('wmic os get Caption,Version /format:list', { encoding: 'utf8' })
@@ -225,7 +269,7 @@ function getOSInfo() {
       return `Windows ${release}`
     }
   } else if (platform === 'darwin') {
-    // macOS 版本检测
+    // macOS 环境
     const { execSync } = require('child_process')
     try {
       const output = execSync('sw_vers -productVersion', { encoding: 'utf8' }).trim()
@@ -245,7 +289,7 @@ function getOSInfo() {
       return `macOS ${release}`
     }
   } else {
-    // Linux 版本检测
+    // Linux 原生环境
     const { execSync } = require('child_process')
     try {
       const output = execSync('cat /etc/os-release', { encoding: 'utf8' })
@@ -268,34 +312,105 @@ function getOSInfo() {
   }
 }
 
-// 获取 OpenClaw 安装路径
+// 获取 OpenClaw 安装路径（全自动平台检测，WSL2 获取 Linux 原生路径）
 function getOpenClawInstallPath() {
   const platform = process.platform
   const { execSync } = require('child_process')
   
+  // 检测是否为 WSL2 环境
+  const isWSL2 = platform === 'linux' && detectWSL2()
+  
   try {
-    // 使用 npm list 查找全局安装路径
+    // 使用 npm list -g 查找全局安装路径（最准确的方法）
     const output = execSync('npm list -g openclaw', { encoding: 'utf8' })
-    const match = output.match(/-> openclaw@([\d.]+)/)
-    if (match) {
-      if (platform === 'win32') {
-        const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
-        return path.join(appData, 'npm', 'node_modules', 'openclaw')
-      } else {
-        return '/usr/local/lib/node_modules/openclaw'
+    const lines = output.split('\n')
+    // 查找包含 openclaw@ 的行，提取路径
+    for (const line of lines) {
+      const match = line.match(/-> openclaw@([\d.]+)/)
+      if (match) {
+        // npm list -g 返回的第一行通常包含路径信息
+        const pathMatch = lines[0].match(/^(.+)$/)
+        if (pathMatch && pathMatch[1].trim()) {
+          return pathMatch[1].trim()
+        }
       }
+    }
+    // 备用：从输出中提取路径
+    const pathMatch = output.match(/([/\\][^:\n]+node_modules[\\/]openclaw)/)
+    if (pathMatch) {
+      return pathMatch[1].replace(/\\/g, '/')
     }
   } catch (e) {
     // npm list 失败，尝试其他方法
   }
   
-  // 备用方法：检查常见安装路径
-  const pathsToTry = [
+  // WSL2 环境：优先使用 Linux 风格路径
+  if (isWSL2) {
+    const wslPaths = [
+      path.join(os.homedir(), '.nvm', 'versions', 'node', 'current', 'lib', 'node_modules', 'openclaw'),
+      path.join(os.homedir(), '.nvm', 'versions', 'node', process.version, 'lib', 'node_modules', 'openclaw'),
+      '/home/' + (os.userInfo().username || 'user') + '/.nvm/versions/node/current/lib/node_modules/openclaw',
+      '/usr/local/lib/node_modules/openclaw',
+      '/usr/lib/node_modules/openclaw',
+    ]
+    for (const p of wslPaths) {
+      try {
+        const { accessSync } = require('fs')
+        accessSync(p)
+        return p
+      } catch (e) {
+        // 路径不存在，继续尝试
+      }
+    }
+    // 如果都找不到，返回基于当前用户的路径
+    return `/home/${os.userInfo().username || 'user'}/.nvm/versions/node/${process.version}/lib/node_modules/openclaw`
+  }
+  
+  // Windows 原生环境
+  if (platform === 'win32') {
+    const winPaths = [
+      path.join(os.homedir(), '.nvm', 'versions', 'node', 'current', 'lib', 'node_modules', 'openclaw'),
+      path.join(os.homedir(), '.nvm', 'versions', 'node', process.version, 'lib', 'node_modules', 'openclaw'),
+      process.env.APPDATA ? path.join(process.env.APPDATA, 'npm', 'node_modules', 'openclaw') : undefined,
+      'C:\\Program Files\\nodejs\\node_modules\\openclaw',
+    ].filter(Boolean)
+    for (const p of winPaths) {
+      try {
+        const { accessSync } = require('fs')
+        accessSync(p)
+        return p
+      } catch (e) {
+        // 路径不存在，继续尝试
+      }
+    }
+    return 'C:\\Program Files\\nodejs\\node_modules\\openclaw'
+  }
+  
+  // macOS 和 Linux 原生环境
+  const unixPaths = [
     path.join(os.homedir(), '.nvm', 'versions', 'node', 'current', 'lib', 'node_modules', 'openclaw'),
     path.join(os.homedir(), '.nvm', 'versions', 'node', process.version, 'lib', 'node_modules', 'openclaw'),
     '/usr/local/lib/node_modules/openclaw',
     '/usr/lib/node_modules/openclaw',
+    '/opt/homebrew/lib/node_modules/openclaw', // macOS M1/M2
   ]
+  for (const p of unixPaths) {
+    try {
+      const { accessSync } = require('fs')
+      accessSync(p)
+      return p
+    } catch (e) {
+      // 路径不存在，继续尝试
+    }
+  }
+  
+  // 所有路径都找不到，返回最可能的路径
+  if (platform === 'darwin') {
+    return `/Users/${os.userInfo().username || 'user'}/.nvm/versions/node/${process.version}/lib/node_modules/openclaw`
+  } else {
+    return `/home/${os.userInfo().username || 'user'}/.nvm/versions/node/${process.version}/lib/node_modules/openclaw`
+  }
+}
   
   if (platform === 'win32') {
     const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
