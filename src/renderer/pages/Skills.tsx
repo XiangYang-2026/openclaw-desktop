@@ -41,52 +41,69 @@ export default function Skills() {
   const [search, setSearch] = useState('')
   const [showHelp, setShowHelp] = useState<Skill|null>(null)
   const [sortBy, setSortBy] = useState<'hot'|'name'|'newest'>('hot')
+  const [hubPage, setHubPage] = useState(1)
+  const [pageError, setPageError] = useState<string|null>(null)
+  const [installing, setInstalling] = useState<string|null>(null)
 
   const log = (m:string) => setLogs(p=>[...p, `[${ts()}] ${m}`])
+  const logError = (m:string,e?:any) => { 
+    const msg = e instanceof Error ? e.message : String(e)
+    setLogs(p=>[...p, `[${ts()}] ❌ ${m}: ${msg}`])
+    setPageError(m)
+  }
 
   const loadInstalled = async () => {
-    setLoading(true)
+    setLoading(true); setPageError(null)
     try {
       const r = await window.electron.skills.list()
       const lines = r.output.split('\n').filter(l=>l.trim())
-      // 解析真实技能列表
       const parsed = lines.map((l,i) => {
         const parts = l.trim().split(/\s+/)
         return { id:`inst-${i}`, name:parts[0]||'unknown', version:parts[1]||'1.0.0', description:'已安装技能', author:'Unknown', installed:true, builtin:false, category:'other', help:'', downloads:0 }
       })
-      // 合并内置技能
       const builtinNames = BUILTIN_SKILLS.map(s=>s.name)
-      const merged = [
-        ...BUILTIN_SKILLS.map((s,i)=>({...s, id:`builtin-${i}`, installed:true})),
-        ...parsed.filter(p=>!builtinNames.includes(p.name))
-      ]
+      const merged = [...BUILTIN_SKILLS.map((s,i)=>({...s, id:`builtin-${i}`, installed:true})), ...parsed.filter(p=>!builtinNames.includes(p.name))]
       setInstalled(merged)
       log(`加载 ${merged.length} 个已安装技能（${BUILTIN_SKILLS.length} 内置 + ${parsed.length} 第三方）`)
-    } catch(e) { log(`加载失败：${e}`) }
+    } catch(e) { logError('加载已安装技能失败',e) }
     setLoading(false)
   }
 
-  const loadHub = async () => {
-    setLoading(true)
+  const loadHub = async (page=1) => {
+    setLoading(true); setPageError(null)
     try {
-      // 模拟 ClawHub API 调用（实际应调用真实 API）
+      const pageSize = 10
+      const start = (page-1)*pageSize
+      const end = Math.min(start+pageSize, CLAWHUB_SKILLS.length)
+      const paginated = CLAWHUB_SKILLS.slice(start, end)
       const installedNames = installed.map(s=>s.name)
-      const merged = CLAWHUB_SKILLS.map((s,i)=>({...s, id:`hub-${i}`, installed:installedNames.includes(s.name), builtin:false}))
-      setHubSkills(merged)
-      log(`加载 ${merged.length} 个 ClawHub 技能`)
-    } catch(e) { log(`加载失败：${e}`) }
+      const merged = paginated.map((s,i)=>({...s, id:`hub-${start+i}`, installed:installedNames.includes(s.name), builtin:false}))
+      setHubSkills(page===1 ? merged : [...hubSkills, ...merged])
+      log(`加载 ClawHub 第${page}页（${merged.length}个技能）`)
+    } catch(e) { logError('加载 ClawHub 失败',e) }
     setLoading(false)
+  }
+
+  const loadMoreHub = async () => {
+    if(loading) return
+    const maxPages = Math.ceil(CLAWHUB_SKILLS.length/10)
+    if(hubPage >= maxPages) { log('📄 已加载全部技能'); return }
+    const nextPage = hubPage + 1
+    setHubPage(nextPage)
+    await loadHub(nextPage)
   }
 
   const install = async (name:string) => {
-    setLoading(true)
+    if(installing) return
+    setInstalling(name)
     log(`📥 安装 ${name}...`)
     try {
       const r = await window.electron.skills.install(name)
       log(r.success ? `✅ ${name} 安装成功` : `❌ ${r.error||r.output}`)
-      await loadInstalled(); await loadHub()
-    } catch(e) { log(`❌ ${e}`) }
-    setLoading(false)
+      await loadInstalled()
+      if(tab==='browse') { setHubPage(1); await loadHub(1) }
+    } catch(e) { logError(`安装 ${name} 失败`,e) }
+    setInstalling(null)
   }
 
   const uninstall = async (name:string, builtin:boolean) => {
@@ -97,8 +114,9 @@ export default function Skills() {
     try {
       const r = await window.electron.skills.uninstall(name)
       log(r.success ? `✅ ${name} 已卸载` : `❌ ${r.error||r.output}`)
-      await loadInstalled(); await loadHub()
-    } catch(e) { log(`❌ ${e}`) }
+      await loadInstalled()
+      if(tab==='browse') { setHubPage(1); await loadHub(1) }
+    } catch(e) { logError(`卸载 ${name} 失败`,e) }
     setLoading(false)
   }
 
@@ -108,7 +126,7 @@ export default function Skills() {
     try {
       const r = await window.electron.skills.scan(name)
       log(r.success ? `✅ 扫描通过` : `⚠️ ${r.error||r.output}`)
-    } catch(e) { log(`❌ ${e}`) }
+    } catch(e) { logError(`扫描 ${name} 失败`,e) }
     setLoading(false)
   }
 
@@ -118,13 +136,20 @@ export default function Skills() {
     try {
       const r = await window.electron.skills.update(name)
       log(r.success ? `✅ 更新完成` : `❌ ${r.error||r.output}`)
-      await loadInstalled(); await loadHub()
-    } catch(e) { log(`❌ ${e}`) }
+      await loadInstalled()
+      if(tab==='browse') { setHubPage(1); await loadHub(1) }
+    } catch(e) { logError('更新失败',e) }
     setLoading(false)
   }
 
-  useEffect(()=>{ loadInstalled() }, [])
-  useEffect(()=>{ if(tab==='browse') loadHub() }, [tab])
+  useEffect(()=>{ 
+    loadInstalled().catch(e=>logError('初始化失败',e))
+    log('技能管理页面初始化完成')
+  }, [])
+  
+  useEffect(()=>{ 
+    if(tab==='browse') { setHubPage(1); setHubSkills([]); loadHub(1).catch(e=>logError('加载 ClawHub 失败',e)) }
+  }, [tab])
 
   const filter = (skills:Skill[]) => skills.filter(s=>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -172,6 +197,7 @@ export default function Skills() {
 
   const SkillCard = ({skill,mode}:{skill:Skill;mode:'installed'|'browse'}) => {
     const c = catColor(skill.category)
+    const isInstalling = installing === skill.name
     return (
       <div style={{padding:'15px',border:'1px solid #e8e8e8',borderRadius:'8px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div style={{flex:1}}>
@@ -190,10 +216,12 @@ export default function Skills() {
           {mode==='installed' ? (
             <>
               <button onClick={()=>scan(skill.name)} disabled={loading} style={{padding:'6px 12px',background:'#f0f0f0',color:'#333',border:'none',borderRadius:'4px',cursor:loading?'not-allowed':'pointer',fontSize:'12px'}}>🔍 扫描</button>
-              {!skill.builtin && <button onClick={()=>uninstall(skill.name,skill.builtin||false)} disabled={loading} style={{padding:'6px 12px',background:'#ff4d4f',color:'#fff',border:'none',borderRadius:'4px',cursor:loading?'not-allowed':'pointer',fontSize:'12px'}}>🗑️ 卸载</button>}
+              {!skill.builtin && <button onClick={()=>uninstall(skill.name,skill.builtin||false)} disabled={loading||isInstalling} style={{padding:'6px 12px',background:'#ff4d4f',color:'#fff',border:'none',borderRadius:'4px',cursor:(loading||isInstalling)?'not-allowed':'pointer',fontSize:'12px'}}>🗑️ 卸载</button>}
             </>
           ) : (
-            skill.installed ? (
+            isInstalling ? (
+              <span style={{padding:'6px 12px',background:'#1890ff',color:'#fff',borderRadius:'4px',fontSize:'12px'}}>🔄 安装中...</span>
+            ) : skill.installed ? (
               <span style={{padding:'6px 12px',background:'#52c41a',color:'#fff',borderRadius:'4px',fontSize:'12px'}}>✅ 已安装</span>
             ) : (
               <button onClick={()=>install(skill.name)} disabled={loading} style={{padding:'6px 12px',background:'#52c41a',color:'#fff',border:'none',borderRadius:'4px',cursor:loading?'not-allowed':'pointer',fontSize:'12px'}}>📥 安装</button>
@@ -204,28 +232,11 @@ export default function Skills() {
     )
   }
 
-  // 创建技能页面
   const CreateSkill = () => {
     const [name,setName] = useState('');const [desc,setDesc] = useState('');const [category,setCategory] = useState('utility')
     const [trigger,setTrigger] = useState('');const [result,setResult] = useState('')
     const genPrompt = () => {
-      const prompt = `# ${name}
-
-## 描述
-${desc}
-
-## 触发词
-${trigger||name}
-
-## 功能
-${desc}
-
-## 使用示例
-${name} <参数>
-
-## 注意事项
-- 本技能由用户自定义创建
-- 需要配置相应的 API 密钥或依赖`
+      const prompt = `# ${name}\n\n## 描述\n${desc}\n\n## 触发词\n${trigger||name}\n\n## 功能\n${desc}\n\n## 使用示例\n${name} <参数>\n\n## 注意事项\n- 本技能由用户自定义创建\n- 需要配置相应的 API 密钥或依赖`
       setResult(prompt)
       log(`生成技能创建提示词：${name}`)
     }
@@ -267,6 +278,10 @@ ${name} <参数>
     )
   }
 
+  const builtinCount = installed.filter(s=>s.builtin).length
+  const thirdPartyCount = installed.filter(s=>!s.builtin).length
+  const maxPages = Math.ceil(CLAWHUB_SKILLS.length/10)
+
   return (
     <div style={{padding:'20px'}}>
       <h2 style={{marginBottom:'20px'}}>🧩 技能管理</h2>
@@ -286,35 +301,46 @@ ${name} <参数>
           <button onClick={()=>update()} disabled={loading} style={{padding:'8px 16px',background:'#52c41a',color:'#fff',border:'none',borderRadius:'4px',cursor:loading?'not-allowed':'pointer',fontSize:'13px'}}>🔄 更新全部</button>
         )}
       </div>
+      {pageError && <div style={{padding:'10px',background:'#fff1f0',border:'1px solid #ffa39e',borderRadius:'4px',marginBottom:'15px',color:'#ff4d4f',fontSize:'13px'}}>⚠️ {pageError}</div>}
       <input type="text" placeholder="搜索技能名称、描述、作者..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:'100%',padding:'10px',border:'1px solid #d9d9d9',borderRadius:'4px',fontSize:'14px',marginBottom:'20px'}}/>
+      {tab==='installed' && installed.length>0 && (
+        <div style={{marginBottom:'15px',fontSize:'13px',color:'#666'}}>
+          📊 统计：<span style={{color:'#1890ff'}}>{builtinCount} 内置</span> | <span style={{color:'#52c41a'}}>{thirdPartyCount} 第三方</span> | 总计 {installed.length}
+        </div>
+      )}
       {tab==='browse' && (
         <div style={{marginBottom:'20px',display:'flex',gap:'10px',alignItems:'center'}}>
           <span style={{fontSize:'13px',color:'#666'}}>排序：</span>
           <button onClick={()=>setSortBy('hot')} style={{padding:'5px 12px',background:sortBy==='hot'?'#1890ff':'#f0f0f0',color:sortBy==='hot'?'#fff':'#333',border:'none',borderRadius:'4px',cursor:'pointer',fontSize:'12px'}}>🔥 热度</button>
           <button onClick={()=>setSortBy('name')} style={{padding:'5px 12px',background:sortBy==='name'?'#1890ff':'#f0f0f0',color:sortBy==='name'?'#fff':'#333',border:'none',borderRadius:'4px',cursor:'pointer',fontSize:'12px'}}>📃 名称</button>
           <button onClick={()=>setSortBy('newest')} style={{padding:'5px 12px',background:sortBy==='newest'?'#1890ff':'#f0f0f0',color:sortBy==='newest'?'#fff':'#333',border:'none',borderRadius:'4px',cursor:'pointer',fontSize:'12px'}}>🕐 最新</button>
+          <span style={{fontSize:'13px',color:'#999',marginLeft:'auto'}}>第{hubPage}/{maxPages}页</span>
         </div>
       )}
       <div style={{padding:'20px',background:'#fff',borderRadius:'8px',border:'1px solid #e8e8e8',minHeight:'400px'}}>
-        {tab==='installed' ? (
+        {loading && <div style={{textAlign:'center',padding:'40px',color:'#999'}}>🔄 加载中...</div>}
+        {!loading && tab==='installed' ? (
           filter(installed).length===0 ? (
-            <div style={{padding:'40px',textAlign:'center',color:'#999'}}>📭 暂无已安装技能</div>
+            <div style={{padding:'40px',textAlign:'center',color:'#999'}}>{installed.length===0?'📭 暂无已安装技能':'🔍 搜索结果为空'}</div>
           ) : (
             <div style={{display:'grid',gap:'15px'}}>{filter(installed).map(s=> <SkillCard key={s.id} skill={s} mode="installed" />)}</div>
           )
-        ) : tab==='browse' ? (
+        ) : !loading && tab==='browse' ? (
           filter(sort(hubSkills)).length===0 ? (
             <div style={{padding:'40px',textAlign:'center',color:'#999'}}>🌐 暂无可用技能</div>
           ) : (
-            <div style={{display:'grid',gap:'15px'}}>{filter(sort(hubSkills)).map(s=> <SkillCard key={s.id} skill={s} mode="browse" />)}</div>
+            <>
+              <div style={{display:'grid',gap:'15px'}}>{filter(sort(hubSkills)).map(s=> <SkillCard key={s.id} skill={s} mode="browse" />)}</div>
+              {hubPage < maxPages && <div style={{textAlign:'center',marginTop:'20px'}}><button onClick={loadMoreHub} disabled={loading} style={{padding:'10px 20px',background:'#1890ff',color:'#fff',border:'none',borderRadius:'4px',cursor:loading?'not-allowed':'pointer',fontSize:'14px'}}>📥 加载更多</button></div>}
+            </>
           )
-        ) : (
+        ) : !loading && (
           <CreateSkill />
         )}
       </div>
       <div style={{background:'#1e1e1e',color:'#d4d4d4',padding:'15px',borderRadius:'8px',fontFamily:'Consolas',fontSize:'13px',minHeight:'150px',marginTop:'20px'}}>
         <h3 style={{margin:'0 0 10px 0',color:'#569cd6'}}>📋 操作日志</h3>
-        {logs.length===0 ? <p style={{color:'#6a9955'}}>暂无日志</p> : logs.map((l,i)=><div key={i}>{l}</div>)}
+        {logs.length===0 ? <p style={{color:'#6a9955'}}>暂无日志</p> : logs.slice(-50).map((l,i)=><div key={i}>{l}</div>)}
       </div>
       {showHelp && <HelpModal skill={showHelp} onClose={()=>setShowHelp(null)} />}
     </div>
