@@ -200,12 +200,137 @@ ipcMain.handle('gateway:stop', async () => {
   })
 })
 
-// 系统状态
+// 获取操作系统详细信息
+function getOSInfo() {
+  const platform = process.platform
+  const release = os.release()
+  
+  if (platform === 'win32') {
+    // Windows 版本检测
+    const { execSync } = require('child_process')
+    try {
+      const output = execSync('wmic os get Caption,Version /format:list', { encoding: 'utf8' })
+      const lines = output.split('\r\n')
+      let caption = 'Windows'
+      let version = ''
+      for (const line of lines) {
+        if (line.startsWith('Caption=')) {
+          caption = line.substring(8)
+        } else if (line.startsWith('Version=')) {
+          version = line.substring(8)
+        }
+      }
+      return `${caption} ${version}`
+    } catch (e) {
+      return `Windows ${release}`
+    }
+  } else if (platform === 'darwin') {
+    // macOS 版本检测
+    const { execSync } = require('child_process')
+    try {
+      const output = execSync('sw_vers -productVersion', { encoding: 'utf8' }).trim()
+      const macosVersions = {
+        '14': 'Sonoma',
+        '13': 'Ventura',
+        '12': 'Monterey',
+        '11': 'Big Sur',
+        '10.15': 'Catalina',
+        '10.14': 'Mojave',
+        '10.13': 'High Sierra',
+      }
+      const majorVersion = output.split('.')[0] + '.' + (output.split('.')[1] || '0')
+      const codename = macosVersions[majorVersion] || macosVersions[majorVersion.split('.')[0]] || ''
+      return `macOS ${codename ? codename + ' ' : ''}${output}`
+    } catch (e) {
+      return `macOS ${release}`
+    }
+  } else {
+    // Linux 版本检测
+    const { execSync } = require('child_process')
+    try {
+      const output = execSync('cat /etc/os-release', { encoding: 'utf8' })
+      const lines = output.split('\n')
+      let name = 'Linux'
+      let version = ''
+      for (const line of lines) {
+        if (line.startsWith('PRETTY_NAME=')) {
+          return line.substring(12).replace(/"/g, '')
+        } else if (line.startsWith('NAME=')) {
+          name = line.substring(5).replace(/"/g, '')
+        } else if (line.startsWith('VERSION=')) {
+          version = line.substring(8).replace(/"/g, '')
+        }
+      }
+      return version ? `${name} ${version}` : name
+    } catch (e) {
+      return `Linux ${release}`
+    }
+  }
+}
+
+// 获取 OpenClaw 安装路径
+function getOpenClawInstallPath() {
+  const platform = process.platform
+  const { execSync } = require('child_process')
+  
+  try {
+    // 使用 npm list 查找全局安装路径
+    const output = execSync('npm list -g openclaw', { encoding: 'utf8' })
+    const match = output.match(/-> openclaw@([\d.]+)/)
+    if (match) {
+      if (platform === 'win32') {
+        const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
+        return path.join(appData, 'npm', 'node_modules', 'openclaw')
+      } else {
+        return '/usr/local/lib/node_modules/openclaw'
+      }
+    }
+  } catch (e) {
+    // npm list 失败，尝试其他方法
+  }
+  
+  // 备用方法：检查常见安装路径
+  const pathsToTry = [
+    path.join(os.homedir(), '.nvm', 'versions', 'node', 'current', 'lib', 'node_modules', 'openclaw'),
+    path.join(os.homedir(), '.nvm', 'versions', 'node', process.version, 'lib', 'node_modules', 'openclaw'),
+    '/usr/local/lib/node_modules/openclaw',
+    '/usr/lib/node_modules/openclaw',
+  ]
+  
+  if (platform === 'win32') {
+    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
+    pathsToTry.unshift(path.join(appData, 'npm', 'node_modules', 'openclaw'))
+  }
+  
+  for (const p of pathsToTry) {
+    if (fs.existsSync(p)) {
+      return p
+    }
+  }
+  
+  // 如果都找不到，返回当前使用的命令路径
+  if (openClawPath && !openClawPath.includes(' ')) {
+    try {
+      const realPath = fs.realpathSync(openClawPath)
+      return path.dirname(realPath)
+    } catch (e) {
+      // 忽略错误
+    }
+  }
+  
+  return '未知（未找到安装路径）'
+}
+
+// 系统状态（增强版）
 ipcMain.handle('system:status', async () => {
-  return new Promise((resolve) => {
+  const osInfo = getOSInfo()
+  const installPath = getOpenClawInstallPath()
+  
+  // 检查网关状态
+  const gatewayResult = await new Promise((resolve) => {
     let result = ''
     let errorResult = ''
-    runOpenClawCommand(['status'], (type, data) => {
+    runOpenClawCommand(['gateway', 'status'], (type, data) => {
       if (type === 'close') {
         resolve({ success: data.code === 0, output: result, error: errorResult })
       } else if (type === 'output') {
@@ -215,6 +340,16 @@ ipcMain.handle('system:status', async () => {
       }
     })
   })
+  
+  return {
+    success: true,
+    osInfo,
+    installPath,
+    gatewayRunning: gatewayResult.success,
+    platform: process.platform,
+    arch: process.arch,
+    nodeVersion: process.version,
+  }
 })
 
 // 节点管理

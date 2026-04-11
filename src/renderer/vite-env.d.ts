@@ -8,7 +8,17 @@ interface Window {
       stop: () => Promise<{ success: boolean; output: string; error: string }>
     }
     system: {
-      status: () => Promise<{ success: boolean; output: string; error: string }>
+      status: () => Promise<{
+        success: boolean
+        output: string
+        error: string
+        osInfo?: string
+        installPath?: string
+        gatewayRunning?: boolean
+        platform?: string
+        arch?: string
+        nodeVersion?: string
+      }>
       info: () => Promise<{
         platform: string
         arch: string

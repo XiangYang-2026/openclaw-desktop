@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import Nodes from './pages/Nodes'
+import Models from './pages/Models'
 import Channels from './pages/Channels'
 import Skills from './pages/Skills'
 import Settings from './pages/Settings'
 import Sessions from './pages/Sessions'
 
-type Page = 'gateway' | 'nodes' | 'channels' | 'skills' | 'sessions' | 'settings'
+type Page = 'gateway' | 'models' | 'channels' | 'skills' | 'sessions' | 'settings'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('gateway')
@@ -30,7 +30,11 @@ function App() {
     setLoading(true)
     try {
       const result = await window.electron.system.status()
-      setSystemStatus(result.success ? '✅ 正常' : `⚠️ ${result.output}`)
+      if (result.success) {
+        setSystemStatus(result.gatewayRunning ? '✅ 正常' : '⚠️ 网关未运行')
+      } else {
+        setSystemStatus(`⚠️ ${result.output || '未知错误'}`)
+      }
     } catch (err) {
       setSystemStatus(`❌ 错误：${err instanceof Error ? err.message : String(err)}`)
     }
@@ -53,9 +57,10 @@ function App() {
           loading={loading}
           setLoading={setLoading}
           checkGatewayStatus={checkGatewayStatus}
+          checkSystemStatus={checkSystemStatus}
         />
-      case 'nodes':
-        return <Nodes />
+      case 'models':
+        return <Models />
       case 'channels':
         return <Channels />
       case 'skills':
@@ -96,10 +101,10 @@ function App() {
             onClick={() => setCurrentPage('gateway')} 
           />
           <NavItem 
-            icon="📱" 
-            label="节点管理" 
-            active={currentPage === 'nodes'} 
-            onClick={() => setCurrentPage('nodes')} 
+            icon="🤖" 
+            label="模型管理" 
+            active={currentPage === 'models'} 
+            onClick={() => setCurrentPage('models')} 
           />
           <NavItem 
             icon="📺" 
@@ -175,6 +180,18 @@ function NavItem({ icon, label, active, onClick, disabled }: {
   )
 }
 
+// 生成时间戳
+const getTimestamp = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  const seconds = String(now.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
 // 网关管理页面组件
 function GatewayPage({ 
   gatewayStatus, 
@@ -182,46 +199,91 @@ function GatewayPage({
   loading, 
   setLoading,
   checkGatewayStatus,
+  checkSystemStatus,
 }: {
   gatewayStatus: string
   systemStatus: string
   loading: boolean
   setLoading: (v: boolean) => void
   checkGatewayStatus: () => void
+  checkSystemStatus: () => void
 }) {
   const [logs, setLogs] = useState<string[]>([])
+  const [systemInfo, setSystemInfo] = useState<{
+    osInfo?: string
+    installPath?: string
+    platform?: string
+  }>({})
+
+  // 添加日志
+  const addLog = (message: string) => {
+    setLogs(prev => [...prev, `[${getTimestamp()}] ${message}`])
+  }
 
   // 启动网关
   const startGateway = async () => {
-    setLogs(prev => [...prev, '🚀 正在启动网关...'])
+    addLog('执行启动网关操作...')
     try {
       const result = await window.electron.gateway.start()
       if (result.success) {
-        setLogs(prev => [...prev, '✅ 网关启动成功'])
+        addLog('执行启动网关操作，网关服务启动成功')
         checkGatewayStatus()
+        checkSystemStatus()
       } else {
-        setLogs(prev => [...prev, `❌ 启动失败：${result.error || result.output}`])
+        addLog(`执行启动网关操作，网关服务启动失败：${result.error || result.output}`)
       }
     } catch (err) {
-      setLogs(prev => [...prev, `❌ 错误：${err instanceof Error ? err.message : String(err)}`])
+      addLog(`执行启动网关操作，网关服务启动失败：${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
   // 停止网关
   const stopGateway = async () => {
-    setLogs(prev => [...prev, '🛑 正在停止网关...'])
+    addLog('执行停止网关操作...')
     try {
       const result = await window.electron.gateway.stop()
       if (result.success) {
-        setLogs(prev => [...prev, '✅ 网关已停止'])
+        addLog('执行停止网关操作，网关服务已停止')
         checkGatewayStatus()
+        checkSystemStatus()
       } else {
-        setLogs(prev => [...prev, `❌ 停止失败：${result.error || result.output}`])
+        addLog(`执行停止网关操作，网关服务停止失败：${result.error || result.output}`)
       }
     } catch (err) {
-      setLogs(prev => [...prev, `❌ 错误：${err instanceof Error ? err.message : String(err)}`])
+      addLog(`执行停止网关操作，网关服务停止失败：${err instanceof Error ? err.message : String(err)}`)
     }
   }
+
+  // 刷新状态
+  const refreshStatus = async () => {
+    addLog('手动刷新网关/系统状态')
+    await checkGatewayStatus()
+    await checkSystemStatus()
+  }
+
+  // 加载系统详细信息（每次系统状态变化时刷新）
+  useEffect(() => {
+    const loadSystemInfo = async () => {
+      try {
+        const result = await window.electron.system.status()
+        if (result.success) {
+          setSystemInfo({
+            osInfo: result.osInfo,
+            installPath: result.installPath,
+            platform: result.platform,
+          })
+        }
+      } catch (err) {
+        console.error('Failed to load system info:', err)
+      }
+    }
+    loadSystemInfo()
+  }, [systemStatus])
+
+  // 页面初始化日志
+  useEffect(() => {
+    addLog(`网关管理页面初始化完成，当前网关状态：${gatewayStatus.includes('运行中') ? '运行中' : '已停止'}`)
+  }, [])
 
   return (
     <div style={{ padding: '20px' }}>
@@ -249,6 +311,22 @@ function GatewayPage({
         }}>
           <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#666' }}>系统状态</h3>
           <p style={{ fontSize: '18px', margin: 0 }}>{systemStatus}</p>
+          <div style={{ marginTop: '15px', fontSize: '13px', color: '#666', lineHeight: '1.8' }}>
+            {systemInfo.osInfo && (
+              <div>
+                <strong>操作系统：</strong>{systemInfo.osInfo}
+              </div>
+            )}
+            {systemInfo.installPath && (
+              <div>
+                <strong>安装路径：</strong>
+                <span style={{ fontFamily: 'Consolas, monospace', fontSize: '12px' }}>{systemInfo.installPath}</span>
+              </div>
+            )}
+            <div>
+              <strong>系统状态：</strong>{systemStatus.includes('✅') ? '正常' : systemStatus.includes('⚠️') ? '警告' : '异常'}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -296,7 +374,7 @@ function GatewayPage({
         </button>
 
         <button
-          onClick={checkGatewayStatus}
+          onClick={refreshStatus}
           disabled={loading}
           style={{
             padding: '10px 20px',
