@@ -411,30 +411,6 @@ function getOpenClawInstallPath() {
     return `/home/${os.userInfo().username || 'user'}/.nvm/versions/node/${process.version}/lib/node_modules/openclaw`
   }
 }
-  
-  if (platform === 'win32') {
-    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
-    pathsToTry.unshift(path.join(appData, 'npm', 'node_modules', 'openclaw'))
-  }
-  
-  for (const p of pathsToTry) {
-    if (fs.existsSync(p)) {
-      return p
-    }
-  }
-  
-  // 如果都找不到，返回当前使用的命令路径
-  if (openClawPath && !openClawPath.includes(' ')) {
-    try {
-      const realPath = fs.realpathSync(openClawPath)
-      return path.dirname(realPath)
-    } catch (e) {
-      // 忽略错误
-    }
-  }
-  
-  return '未知（未找到安装路径）'
-}
 
 // 系统状态（增强版）
 ipcMain.handle('system:status', async () => {
